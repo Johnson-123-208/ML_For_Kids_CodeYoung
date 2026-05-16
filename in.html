@@ -1,0 +1,1380 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>The Algorithm | Decoding AI Recommendations</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@500;600;700;800&display=swap"
+        rel="stylesheet" />
+    <style>
+        :root {
+            --primary: #0F172A;
+            --accent: #2563EB;
+            --accent-soft: #DBEAFE;
+            --surface: #FFFFFF;
+            --background: #F8FAFC;
+            --text-main: #1E293B;
+            --text-muted: #64748B;
+            --border: #E2E8F0;
+            --glass: rgba(255, 255, 255, 0.8);
+            --card-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --radius-lg: 24px;
+            --radius-md: 16px;
+            --font-heading: 'Outfit', sans-serif;
+            --font-body: 'Inter', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: var(--font-body);
+            background: var(--background);
+            color: var(--text-main);
+            overflow-x: hidden;
+            line-height: 1.6;
+        }
+
+        /* =============================================
+           LOADER
+        ============================================= */
+        #loader {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            background: var(--surface);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        #loader.gone {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        .loader-ring {
+            width: 60px;
+            height: 60px;
+            border: 3px solid var(--accent-soft);
+            border-top: 3px solid var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .loader-text {
+            margin-top: 24px;
+            font-family: var(--font-heading);
+            font-weight: 600;
+            color: var(--primary);
+            letter-spacing: 0.05em;
+        }
+
+        /* =============================================
+           NAVIGATION
+        ============================================= */
+        #pbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            z-index: 1000;
+            background: var(--border);
+        }
+
+        #pfill {
+            height: 100%;
+            width: 0;
+            background: var(--accent);
+            transition: width 0.3s ease;
+        }
+
+        #navdots {
+            position: fixed;
+            right: 32px;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 900;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .nd {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--border);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .nd:hover,
+        .nd.on {
+            background: var(--accent);
+            transform: scale(1.5);
+        }
+
+        .nd.on {
+            box-shadow: 0 0 0 4px var(--accent-soft);
+        }
+
+        .nd::after {
+            content: attr(data-tip);
+            position: absolute;
+            right: 24px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: var(--primary);
+            color: white;
+            font-size: 12px;
+            padding: 4px 12px;
+            border-radius: 6px;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+            font-weight: 500;
+        }
+
+        .nd:hover::after {
+            opacity: 1;
+        }
+
+        /* =============================================
+           LAYOUT
+        ============================================= */
+        .slide {
+            position: relative;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 100px 5%;
+            overflow: hidden;
+        }
+
+        .inner {
+            width: 100%;
+            max-width: 1200px;
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 1s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+
+        .inner.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .grid {
+            display: grid;
+            gap: 32px;
+            align-items: center;
+        }
+
+        .grid-2 {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .grid-4 {
+            grid-template-columns: repeat(4, 1fr);
+        }
+
+        .grid-5 {
+            grid-template-columns: repeat(5, 1fr);
+        }
+
+        @media (max-width: 1024px) {
+            .grid-4 {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .grid-5 {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 900px) {
+            .grid-2 {
+                grid-template-columns: 1fr;
+                text-align: center;
+            }
+
+            .grid-4 {
+                grid-template-columns: 1fr;
+            }
+
+            .grid-5 {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* =============================================
+           TYPOGRAPHY
+        ============================================= */
+        .tag {
+            display: inline-block;
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--accent);
+            background: var(--accent-soft);
+            padding: 6px 16px;
+            border-radius: 100px;
+            margin-bottom: 24px;
+        }
+
+        h1,
+        h2,
+        h3 {
+            font-family: var(--font-heading);
+            color: var(--primary);
+            line-height: 1.1;
+        }
+
+        h1 {
+            font-size: clamp(40px, 8vw, 72px);
+            font-weight: 800;
+            margin-bottom: 24px;
+            white-space: nowrap;
+        }
+
+        h2 {
+            font-size: clamp(32px, 5vw, 48px);
+            font-weight: 700;
+            margin-bottom: 24px;
+            white-space: nowrap;
+        }
+
+        h3 {
+            font-size: clamp(20px, 3vw, 28px);
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
+
+        .subtext {
+            font-size: clamp(16px, 2vw, 20px);
+            color: var(--text-muted);
+            max-width: 600px;
+            margin-bottom: 40px;
+        }
+
+        .highlight {
+            color: var(--accent);
+        }
+
+        /* =============================================
+           COMPONENTS
+        ============================================= */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 32px;
+            box-shadow: var(--card-shadow);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            text-align: center;
+        }
+
+        .card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px 32px;
+            background: var(--primary);
+            color: white;
+            text-decoration: none;
+            border-radius: 100px;
+            font-weight: 600;
+            font-family: var(--font-heading);
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .btn:hover {
+            background: var(--accent);
+            transform: scale(1.02);
+            box-shadow: 0 10px 20px rgba(37, 99, 235, 0.2);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 2px solid var(--border);
+            color: var(--primary);
+        }
+
+        .btn-outline:hover {
+            border-color: var(--accent);
+            background: var(--accent-soft);
+            color: var(--accent);
+        }
+
+        .img-wrap {
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            box-shadow: var(--card-shadow);
+            aspect-ratio: 16/9;
+        }
+
+        .img-wrap img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        /* =============================================
+           ANIMATION EXPLAINER
+        ============================================= */
+        .explainer-carousel {
+            position: relative;
+            background: var(--surface);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+            padding: 60px;
+            overflow: hidden;
+            min-height: 500px;
+            display: flex;
+            align-items: center;
+            box-shadow: var(--card-shadow);
+        }
+
+        .slide-content {
+            display: none;
+            width: 100%;
+            animation: fadeIn 0.8s ease;
+        }
+
+        .slide-content.active {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            align-items: center;
+        }
+
+        .anim-box {
+            height: 300px;
+            background: var(--background);
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* AI Shape Animation */
+        .ai-brain {
+            width: 180px;
+            height: 180px;
+            border: 4px dashed var(--accent);
+            border-radius: 50%;
+            position: relative;
+            animation: rotate 20s linear infinite;
+        }
+
+        .ai-node {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: var(--accent);
+            border-radius: 4px;
+        }
+
+        /* ML Pattern Animation */
+        .ml-flow {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .ml-input {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .data-point {
+            width: 20px;
+            height: 20px;
+            background: var(--text-muted);
+            border-radius: 4px;
+            animation: flow 2s infinite;
+        }
+
+        @keyframes flow {
+            0% {
+                transform: translateX(0);
+                opacity: 0;
+            }
+
+            50% {
+                opacity: 1;
+            }
+
+            100% {
+                transform: translateX(200px);
+                opacity: 0;
+            }
+        }
+
+        @keyframes rotate {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .carousel-nav {
+            position: absolute;
+            bottom: 40px;
+            left: 60px;
+            display: flex;
+            gap: 16px;
+        }
+
+        /* =============================================
+           SPECIFIC SECTIONS
+        ============================================= */
+        .interest-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-bottom: 40px;
+        }
+
+        .interest-btn {
+            padding: 14px 28px;
+            border-radius: 100px;
+            background: var(--surface);
+            border: 2px solid var(--border);
+            cursor: pointer;
+            font-weight: 700;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            font-family: var(--font-heading);
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        }
+
+        .interest-btn:hover {
+            border-color: var(--accent);
+            background: var(--accent-soft);
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+        .interest-btn.active {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+            box-shadow: 0 10px 20px rgba(37, 99, 235, 0.3);
+        }
+
+        .reco-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 24px;
+            margin-top: 32px;
+        }
+
+        .reco-card {
+            background: white;
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            border: 1px solid var(--border);
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            box-shadow: var(--card-shadow);
+        }
+
+        .reco-card:hover {
+            transform: scale(1.05);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+
+        .reco-img-box {
+            aspect-ratio: 16/9;
+            background: var(--accent-soft);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            color: var(--accent);
+            overflow: hidden;
+        }
+
+        .reco-img-box img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .reco-content {
+            padding: 16px;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .reco-title {
+            font-weight: 700;
+            font-size: 14px;
+            line-height: 1.4;
+            margin-bottom: 8px;
+            color: var(--primary);
+        }
+
+        .reco-meta {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        /* QUIZ STYLES */
+        .opt-btn {
+            padding: 18px 24px;
+            border-radius: var(--radius-md);
+            border: 2px solid var(--border);
+            background: var(--surface);
+            text-align: left;
+            cursor: pointer;
+            font-weight: 700;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            font-family: var(--font-body);
+            color: var(--text-main);
+            width: 100%;
+            font-size: 16px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+        }
+
+        .opt-btn:hover {
+            border-color: var(--accent);
+            background: var(--accent-soft);
+            transform: translateX(8px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+
+        .opt-btn.correct {
+            background: #DCFCE7;
+            border-color: #22C55E;
+            color: #166534;
+            box-shadow: 0 4px 12px rgba(34, 197, 94, 0.2);
+        }
+
+        .opt-btn.wrong {
+            background: #FEE2E2;
+            border-color: #EF4444;
+            color: #991B1B;
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.1);
+        }
+
+        .game-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-top: 24px;
+        }
+
+        .game-card {
+            background: white;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.05);
+            text-align: center;
+        }
+
+        .status-badge {
+            background: var(--accent-soft);
+            color: var(--accent);
+            padding: 12px 24px;
+            border-radius: 100px;
+            font-weight: 700;
+            font-size: 14px;
+            display: inline-flex;
+            gap: 12px;
+        }
+
+        @media (max-width: 768px) {
+            .game-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Utility */
+        .hidden {
+            display: none;
+        }
+
+        .v-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .center-text {
+            text-align: center;
+        }
+
+        /* Hero Video Styles */
+        .hero-video-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            overflow: hidden;
+            background: var(--primary);
+        }
+
+        .hero-video-container::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.7) 50%, rgba(37, 99, 235, 0.2) 100%);
+        }
+
+        .hero-video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            filter: brightness(0.6) contrast(1.1);
+            opacity: 0.8;
+        }
+
+        #s0 h1 {
+            color: #FFFFFF;
+            text-shadow: 0 0 20px rgba(37, 99, 235, 0.3);
+        }
+
+        #s0 .subtext {
+            color: #CBD5E1;
+        }
+
+        #s0 .highlight {
+            color: #60A5FA;
+            text-shadow: 0 0 30px rgba(96, 165, 250, 0.5);
+        }
+
+        #s0 .btn {
+            background: #FFFFFF;
+            color: var(--primary);
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
+        }
+
+        #s0 .btn:hover {
+            background: var(--accent);
+            color: white;
+        }
+
+        @media (max-width: 900px) {
+            .hero-video-container::after {
+                background: rgba(15, 23, 42, 0.9);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- LOADER -->
+    <div id="loader">
+        <div class="loader-ring"></div>
+        <div class="loader-text">DECODING INTELLIGENCE</div>
+    </div>
+
+    <!-- PROGRESS -->
+    <div id="pbar">
+        <div id="pfill"></div>
+    </div>
+
+    <!-- NAVIGATION -->
+    <nav id="navdots">
+        <div class="nd on" data-s="0" data-tip="Introduction"></div>
+        <div class="nd" data-s="1" data-tip="The Concept"></div>
+        <div class="nd" data-s="2" data-tip="The Cycle"></div>
+        <div class="nd" data-s="3" data-tip="YouTube Algorithm"></div>
+        <div class="nd" data-s="4" data-tip="Simulation"></div>
+        <div class="nd" data-s="5" data-tip="Daily AI"></div>
+        <div class="nd" data-s="6" data-tip="Review"></div>
+        <div class="nd" data-s="7" data-tip="Final Thoughts"></div>
+    </nav>
+
+    <!-- HERO SECTION -->
+    <section class="slide" id="s0">
+        <div class="hero-video-container">
+            <video class="hero-video" autoplay muted loop playsinline>
+                <source src="200609-913150862.mp4" type="video/mp4">
+            </video>
+        </div>
+        <div class="inner">
+            <div class="grid grid-2">
+                <div>
+                    <h1>Unlocking the <span class="highlight">Mind</span> of the Machine</h1>
+                    <p class="subtext">Ever wonder how YouTube seems to know you better than your friends? It's not
+                        magic—it's a digital apprentice called Machine Learning.</p>
+                    <div class="v-stack" style="align-items: flex-start;">
+                        <button class="btn" onclick="goTo(1)">Start Exploring</button>
+                    </div>
+                </div>
+                <div class="img-wrap">
+                    <img src="https://images.unsplash.com/photo-1485827404703-89b55fcc595e?auto=format&fit=crop&q=80&w=1000"
+                        alt="Friendly Robot AI">
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CHAPTER 1: AI vs ML (INTERACTIVE EXPLAINER) -->
+    <section class="slide" id="s1" style="background: white;">
+        <div class="inner">
+            <h2>The <span class="highlight">Intelligence</span></h2>
+
+            <div class="explainer-carousel">
+                <!-- Slide 1: Artificial Intelligence -->
+                <div class="slide-content active" id="exp-slide-0">
+                    <div>
+                        <h3 style="font-size: 32px; margin-bottom: 24px;">Artificial Intelligence</h3>
+                        <p class="subtext" style="font-size: 18px; margin-bottom: 32px;">AI is the big vision—creating
+                            machines that can think, solve problems, and act like humans.</p>
+                        <p style="font-weight: 700; color: var(--accent); font-size: 20px;">Definition: A Smart Machine
+                        </p>
+                    </div>
+                    <div class="anim-box" style="background: var(--primary);">
+                        <video autoplay muted loop playsinline style="width: 100%; height: 100%; object-fit: cover; opacity: 0.8;">
+                            <source src="181802-867371654.mp4" type="video/mp4">
+                        </video>
+                        <div style="position: absolute; font-weight: 800; color: white; font-size: 20px; background: rgba(37, 99, 235, 0.8); padding: 10px 24px; border-radius: 100px; backdrop-filter: blur(10px); box-shadow: 0 0 20px rgba(37, 99, 235, 0.4); border: 1px solid rgba(255,255,255,0.2);">AI</div>
+                    </div>
+                </div>
+
+                <!-- Slide 2: Machine Learning -->
+                <div class="slide-content" id="exp-slide-1">
+                    <div>
+                        <h3 style="font-size: 32px; margin-bottom: 24px;">Machine Learning</h3>
+                        <p class="subtext" style="font-size: 18px; margin-bottom: 32px;">ML is how we do it. Instead of
+                            giving a computer rules, we give it millions of examples to learn from.</p>
+                        <p style="font-weight: 700; color: var(--accent); font-size: 20px;">Definition: Learning from
+                            Examples</p>
+                    </div>
+                    <div class="anim-box" style="background: var(--primary);">
+                        <video autoplay muted loop playsinline style="width: 100%; height: 100%; object-fit: cover; opacity: 0.8;">
+                            <source src="142679-780599454_medium.mp4" type="video/mp4">
+                        </video>
+                        <div style="position: absolute; font-weight: 800; color: white; font-size: 20px; background: rgba(37, 99, 235, 0.8); padding: 10px 24px; border-radius: 100px; backdrop-filter: blur(10px); box-shadow: 0 0 20px rgba(37, 99, 235, 0.4); border: 1px solid rgba(255,255,255,0.2);">ML</div>
+                    </div>
+                </div>
+
+                <div class="carousel-nav">
+                    <button class="btn" id="btn-prev" onclick="moveExplainer(-1)"
+                        style="padding: 12px 24px;">Previous</button>
+                    <button class="btn" id="btn-next" onclick="moveExplainer(1)" style="padding: 12px 24px;">Next
+                        Concept</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CHAPTER 2: THE FIVE STEPS -->
+    <section class="slide" id="s2">
+        <div class="inner center-text">
+            <h2>The <span class="highlight">Cycle</span></h2>
+            <p class="subtext" style="margin: 0 auto 48px;">Five simple steps that repeat forever (Think of your hand!)
+            </p>
+
+            <div class="grid" id="cycle-grid" style="grid-template-columns: repeat(5, 1fr); gap: 20px;">
+                <div class="card cycle-step hidden">
+                    <div class="img-wrap" style="margin-bottom: 20px; aspect-ratio: 1/1;">
+                        <img src="https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?auto=format&fit=crop&q=80&w=400"
+                            alt="Action">
+                    </div>
+                    <h3>1. Action</h3>
+                    <p style="font-size: 14px; color: var(--text-muted);">You watch, like, or search for a video.</p>
+                </div>
+                <div class="card cycle-step hidden">
+                    <div class="img-wrap" style="margin-bottom: 20px; aspect-ratio: 1/1;">
+                        <img src="https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=400"
+                            alt="Input">
+                    </div>
+                    <h3>2. Input</h3>
+                    <p style="font-size: 14px; color: var(--text-muted);">The machine saves your choices as data.</p>
+                </div>
+                <div class="card cycle-step hidden">
+                    <div class="img-wrap" style="margin-bottom: 20px; aspect-ratio: 1/1;">
+                        <img src="https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&q=80&w=400"
+                            alt="Learn">
+                    </div>
+                    <h3>3. Learn</h3>
+                    <p style="font-size: 14px; color: var(--text-muted);">The machine spots patterns in what you like.
+                    </p>
+                </div>
+                <div class="card cycle-step hidden">
+                    <div class="img-wrap" style="margin-bottom: 20px; aspect-ratio: 1/1;">
+                        <img src="https://images.unsplash.com/photo-1485827404703-89b55fcc595e?auto=format&fit=crop&q=80&w=400"
+                            alt="Guess">
+                    </div>
+                    <h3>4. Guess</h3>
+                    <p style="font-size: 14px; color: var(--text-muted);">It predicts which video you will enjoy next.
+                    </p>
+                </div>
+                <div class="card cycle-step hidden">
+                    <div class="img-wrap" style="margin-bottom: 20px; aspect-ratio: 1/1;">
+                        <img src="https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&q=80&w=400"
+                            alt="Output">
+                    </div>
+                    <h3>5. Output</h3>
+                    <p style="font-size: 14px; color: var(--text-muted);">The recommended video appears on your screen.
+                    </p>
+                </div>
+            </div>
+
+            <div id="cycle-controls" style="margin-top: 40px;">
+                <button class="btn" id="cycle-next-btn" onclick="nextCycleStep()">Reveal Step 1</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- CHAPTER 3: YOUTUBE ALGORITHM -->
+    <section class="slide" id="s3" style="background: white;">
+        <div class="inner">
+            <h2>YouTube's <span class="highlight">Brain</span></h2>
+            <p class="subtext">Pick an interest and watch the AI work in real-time.</p>
+
+            <div class="interest-grid" id="interest-container">
+                <!-- Buttons added by JS -->
+            </div>
+
+            <div class="reco-grid" id="recommendation-grid">
+                <!-- Cards added by JS -->
+            </div>
+        </div>
+    </section>
+
+    <!-- CHAPTER 4: SIMULATION -->
+    <section class="slide" id="s4">
+        <div class="inner">
+            <div class="grid" style="grid-template-columns: 1fr 1.5fr; align-items: stretch; gap: 60px;">
+                <div style="display: flex; flex-direction: column; justify-content: center;">
+                    <h2 style="margin-bottom: 32px;">Test Your <span class="highlight">AI</span></h2>
+                    <p class="subtext" style="margin-bottom: 48px;">Can you guess what the user wants to watch next? Be
+                        the algorithm!</p>
+
+                    <div class="status-badge" style="align-self: flex-start;">
+                        <span>Score: <span id="game-score" style="color: var(--primary);">0</span></span>
+                        <span style="opacity: 0.3;">|</span>
+                        <span>Task: <span id="game-level" style="color: var(--primary);">1</span>/6</span>
+                    </div>
+                </div>
+
+                <div class="game-card">
+                    <div id="game-question">
+                        <div
+                            style="background: var(--background); padding: 32px; border-radius: var(--radius-md); margin-bottom: 32px;">
+                            <div id="user-avatar" style="font-size: 80px; line-height: 1; margin-bottom: 16px;">👤</div>
+                            <h3 id="user-name" style="margin-bottom: 8px;">User Name</h3>
+                            <p id="user-interests" style="color: var(--text-muted); font-size: 14px; font-weight: 500;">
+                            </p>
+                        </div>
+
+                        <div class="game-grid" id="game-choices">
+                            <!-- Buttons by JS -->
+                        </div>
+
+                        <div id="game-feedback" class="hidden"
+                            style="margin-top: 32px; padding: 20px; border-radius: var(--radius-md); font-weight: 700; background: var(--background);">
+                        </div>
+                        <button id="game-next" class="btn hidden" style="width: 100%; margin-top: 24px;"
+                            onclick="nextGameStep()">Next Task</button>
+                    </div>
+
+                    <div id="game-over" class="hidden">
+                        <div style="font-size: 80px; margin-bottom: 24px;">🎓</div>
+                        <h2 style="margin-bottom: 16px;">Master Algorithm</h2>
+                        <p class="subtext" id="final-stats" style="margin-bottom: 32px;"></p>
+                        <button class="btn" onclick="resetGame()">Restart Simulation</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CHAPTER 5: REAL WORLD -->
+    <section class="slide" id="s5" style="background: white;">
+        <div class="inner">
+            <h2>The <span class="highlight">Daily</span> AI</h2>
+            <p class="subtext">AI is working for you everywhere, right now. It's the invisible helper.</p>
+
+            <div class="grid grid-4" id="daily-grid">
+                <div class="card daily-step hidden">
+                    <h3 style="color: #E50914; margin-bottom: 16px;">Netflix</h3>
+                    <p style="font-size: 14px; color: var(--text-muted); line-height: 1.6; margin-bottom: 12px;">It
+                        watches your habits to suggest your next favorite show.</p>
+                    <p style="font-size: 13px; color: var(--accent); font-weight: 700;">Fact: Over 80% of what people
+                        watch comes from AI recommendations!</p>
+                </div>
+                <div class="card daily-step hidden">
+                    <h3 style="color: #1DB954; margin-bottom: 16px;">Spotify</h3>
+                    <p style="font-size: 14px; color: var(--text-muted); line-height: 1.6; margin-bottom: 12px;">Spots
+                        patterns in the songs you repeat vs. the ones you skip.</p>
+                    <p style="font-size: 13px; color: var(--accent); font-weight: 700;">Fact: It creates a unique 'Daily
+                        Mix' just for your ears.</p>
+                </div>
+                <div class="card daily-step hidden">
+                    <h3 style="color: #FF9900; margin-bottom: 16px;">Amazon</h3>
+                    <p style="font-size: 14px; color: var(--text-muted); line-height: 1.6; margin-bottom: 12px;">
+                        Predicts what you need before you even know it!</p>
+                    <p style="font-size: 13px; color: var(--accent); font-weight: 700;">Fact: It groups you with
+                        millions of 'digital twins' who share your taste.</p>
+                </div>
+                <div class="card daily-step hidden">
+                    <h3 style="color: #4285F4; margin-bottom: 16px;">Google</h3>
+                    <p style="font-size: 14px; color: var(--text-muted); line-height: 1.6; margin-bottom: 12px;">Guesses
+                        your question before you finish typing.</p>
+                    <p style="font-size: 13px; color: var(--accent); font-weight: 700;">Fact: It uses 'Autocomplete' to
+                        save the world millions of hours of typing!</p>
+                </div>
+            </div>
+
+            <div id="daily-controls" style="margin-top: 40px; text-align: center;">
+                <button class="btn" id="daily-next-btn" onclick="nextDailyStep()">Reveal Example 1</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- CHAPTER 6: REVIEW -->
+    <section class="slide" id="s6">
+        <div class="inner">
+            <h2>What did you <span class="highlight">Learn?</span></h2>
+            <p class="subtext">A quick check of your AI knowledge. Test yourself!</p>
+
+            <div id="quiz-container" class="v-stack">
+                <!-- Quiz cards by JS -->
+            </div>
+
+            <div id="quiz-result" class="card hidden center-text" style="margin-top: 40px; text-align: center;">
+                <h2>Certification Complete</h2>
+                <p class="subtext" id="quiz-stats"></p>
+                <button class="btn" onclick="resetQuiz()">Redo Quiz</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- CONCLUSION -->
+    <section class="slide" id="s7" style="background: var(--primary); color: white;">
+        <div class="inner center-text">
+            <h1 style="color: white;">Shape the <span class="highlight" style="color: #60A5FA;">Future</span></h1>
+            <p class="subtext" style="color: #94A3B8; margin: 0 auto 48px;">Now that you know how the machine thinks,
+                you can use it to learn, create, and build a better world. You are the teacher.</p>
+
+            <div class="v-stack" style="align-items: center;">
+                <button class="btn" style="background: white; color: var(--primary);" onclick="goTo(0)">Return to
+                    Start</button>
+                <p style="font-size: 14px; color: #64748B; margin-top: 24px;">Presented by Johnson Obhalloju</p>
+            </div>
+        </div>
+    </section>
+
+    <script>
+        /* ─── SYSTEM ─── */
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                document.getElementById('loader').classList.add('gone');
+                initObserver();
+                initDemo();
+                initGame();
+                initQuiz();
+            }, 1200);
+        });
+
+        function goTo(n) {
+            const slide = document.getElementById('s' + n);
+            if (slide) slide.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        /* ─── NAVIGATION ─── */
+        const dots = document.querySelectorAll('.nd');
+        window.addEventListener('scroll', () => {
+            const slides = document.querySelectorAll('.slide');
+            let current = 0;
+            const scrollPos = window.scrollY + window.innerHeight / 2;
+
+            slides.forEach((slide, i) => {
+                if (slide.offsetTop <= scrollPos) current = i;
+            });
+
+            dots.forEach((dot, i) => dot.classList.toggle('on', i === current));
+
+            const total = document.documentElement.scrollHeight - window.innerHeight;
+            document.getElementById('pfill').style.width = (window.scrollY / total * 100) + '%';
+        });
+
+        dots.forEach(dot => {
+            dot.addEventListener('click', () => goTo(dot.dataset.s));
+        });
+
+        /* ─── OBSERVER ─── */
+        function initObserver() {
+            const io = new IntersectionObserver(entries => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.querySelector('.inner').classList.add('show');
+                    }
+                });
+            }, { threshold: 0.1 });
+
+            document.querySelectorAll('.slide').forEach(slide => io.observe(slide));
+        }
+
+        /* ─── EXPLAINER CAROUSEL ─── */
+        let currentExplainerSlide = 0;
+        const explainerSlides = document.querySelectorAll('.slide-content');
+
+        function moveExplainer(dir) {
+            explainerSlides[currentExplainerSlide].classList.remove('active');
+            currentExplainerSlide = (currentExplainerSlide + dir + explainerSlides.length) % explainerSlides.length;
+            explainerSlides[currentExplainerSlide].classList.add('active');
+
+            document.getElementById('btn-prev').disabled = currentExplainerSlide === 0;
+            document.getElementById('btn-next').innerHTML = currentExplainerSlide === explainerSlides.length - 1 ? 'Start Learning' : 'Next Concept';
+
+            if (currentExplainerSlide === explainerSlides.length - 1) {
+                document.getElementById('btn-next').onclick = () => goTo(2);
+            } else {
+                document.getElementById('btn-next').onclick = () => moveExplainer(1);
+            }
+        }
+
+        /* ─── THE CYCLE INTERACTIVE ─── */
+        let currentCycleStepIndex = -1;
+
+        function nextCycleStep() {
+            const cycleSteps = document.querySelectorAll('.cycle-step');
+            currentCycleStepIndex++;
+            if (currentCycleStepIndex < cycleSteps.length) {
+                cycleSteps[currentCycleStepIndex].classList.remove('hidden');
+
+                const nextBtn = document.getElementById('cycle-next-btn');
+                if (currentCycleStepIndex < cycleSteps.length - 1) {
+                    nextBtn.innerHTML = `Reveal Step ${currentCycleStepIndex + 2}`;
+                } else {
+                    nextBtn.innerHTML = 'Complete Cycle';
+                }
+            } else {
+                document.getElementById('cycle-controls').classList.add('hidden');
+            }
+        }
+
+        /* ─── DAILY AI INTERACTIVE ─── */
+        let currentDailyStepIndex = -1;
+
+        function nextDailyStep() {
+            const steps = document.querySelectorAll('.daily-step');
+            currentDailyStepIndex++;
+            if (currentDailyStepIndex < steps.length) {
+                steps[currentDailyStepIndex].classList.remove('hidden');
+
+                const nextBtn = document.getElementById('daily-next-btn');
+                if (currentDailyStepIndex < steps.length - 1) {
+                    nextBtn.innerHTML = `Reveal Example ${currentDailyStepIndex + 2}`;
+                } else {
+                    nextBtn.innerHTML = 'See All Examples';
+                }
+            } else {
+                document.getElementById('daily-controls').classList.add('hidden');
+            }
+        }
+
+        /* ─── YOUTUBE DEMO ─── */
+        const INTERESTS = [
+            { id: 'gaming', label: 'Gaming', icon: '🎮' },
+            { id: 'coding', label: 'Coding', icon: '💻' },
+            { id: 'music', label: 'Music', icon: '🎵' },
+            { id: 'anime', label: 'Anime', icon: '✨' },
+            { id: 'science', label: 'Science', icon: '🚀' },
+            { id: 'cooking', label: 'Cooking', icon: '👨‍🍳' }
+        ];
+
+        const RECOS = {
+            gaming: [
+                { title: 'New Minecraft Update Review', views: '1.2M', img: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&q=80&w=600' },
+                { title: 'The History of eSports', views: '800K', img: 'https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&q=80&w=600' },
+                { title: 'Pro Gaming Gear 2024', views: '2.1M', img: 'https://images.unsplash.com/photo-1612287230202-1ff1d85d1bdf?auto=format&fit=crop&q=80&w=600' },
+                { title: 'Speedrun World Record', views: '4.5M', img: 'https://images.unsplash.com/photo-1605899435973-ca2d1a8861cf?auto=format&fit=crop&q=80&w=600' }
+            ],
+            coding: [
+                { title: 'Python in 60 Minutes', views: '3.4M', img: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&q=80&w=600' },
+                { title: 'Building a Mobile App', views: '1.5M', img: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&q=80&w=600' },
+                { title: 'CSS Magic for Kids', views: '900K', img: 'https://images.unsplash.com/photo-1507721999472-8ed4421c4af2?auto=format&fit=crop&q=80&w=600' },
+                { title: 'Web Dev Road-map', views: '2.2M', img: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&q=80&w=600' }
+            ],
+            music: [
+                { title: 'Lo-Fi Study Beats', views: '50M', img: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&q=80&w=600' },
+                { title: 'Learn Piano at Home', views: '4.1M', img: 'https://images.unsplash.com/photo-1552422535-c45813c61732?auto=format&fit=crop&q=80&w=600' },
+                { title: 'Mixing Pop Vocals', views: '1.2M', img: 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?auto=format&fit=crop&q=80&w=600' },
+                { title: 'The Science of Sound', views: '2.5M', img: 'https://images.unsplash.com/photo-1557682224-5b8590cd9ec5?auto=format&fit=crop&q=80&w=600' }
+            ],
+            anime: [
+                { title: 'Top 10 Fall Anime', views: '1.8M', img: 'https://images.unsplash.com/photo-1578632292335-df3abbb0d586?auto=format&fit=crop&q=80&w=600' },
+                { title: 'Animation Breakdown', views: '3.2M', img: 'https://images.unsplash.com/photo-1618331835717-801e976710b2?auto=format&fit=crop&q=80&w=600' },
+                { title: 'Character Design 101', views: '900K', img: 'https://images.unsplash.com/photo-1580477667995-2b94f01c9516?auto=format&fit=crop&q=80&w=600' },
+                { title: 'Anime vs Manga History', views: '2.1M', img: 'https://images.unsplash.com/photo-1528319725582-ddc096101511?auto=format&fit=crop&q=80&w=600' }
+            ],
+            science: [
+                { title: 'NASA Mars Mission', views: '5.6M', img: 'https://images.unsplash.com/photo-1507413245164-6160d8298b31?auto=format&fit=crop&q=80&w=600' },
+                { title: 'The Ocean Floor Mystery', views: '2.4M', img: 'https://images.unsplash.com/photo-1454789548928-9efd52dc4031?auto=format&fit=crop&q=80&w=600' },
+                { title: 'Physics of Superheroes', views: '1.1M', img: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&q=80&w=600' },
+                { title: 'Microscopic World Live', views: '800K', img: 'https://images.unsplash.com/photo-1576086213369-97a306d36557?auto=format&fit=crop&q=80&w=600' }
+            ],
+            cooking: [
+                { title: 'Street Food in Japan', views: '12M', img: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?auto=format&fit=crop&q=80&w=600' },
+                { title: 'Molecular Gastronomy', views: '1.5M', img: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&q=80&w=600' },
+                { title: 'Baking the Perfect Cake', views: '4.2M', img: 'https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&q=80&w=600' },
+                { title: 'Beginner Knife Skills', views: '1.1M', img: 'https://images.unsplash.com/photo-1556910103-1c02745aae4d?auto=format&fit=crop&q=80&w=600' }
+            ]
+        };
+
+        const activeInterests = new Set();
+
+        function initDemo() {
+            const container = document.getElementById('interest-container');
+            INTERESTS.forEach(int => {
+                const btn = document.createElement('button');
+                btn.className = 'interest-btn';
+                btn.innerHTML = `${int.icon} ${int.label}`;
+                btn.onclick = () => toggleInterest(int.id, btn);
+                container.appendChild(btn);
+            });
+            updateRecommendations();
+        }
+
+        function toggleInterest(id, btn) {
+            if (activeInterests.has(id)) {
+                activeInterests.delete(id);
+                btn.classList.remove('active');
+            } else {
+                activeInterests.add(id);
+                btn.classList.add('active');
+            }
+            updateRecommendations();
+        }
+
+        function updateRecommendations() {
+            const grid = document.getElementById('recommendation-grid');
+            grid.innerHTML = '';
+
+            if (activeInterests.size === 0) {
+                grid.innerHTML = '<p class="subtext" style="grid-column: 1/-1; text-align: center; margin-top: 40px;">Select an interest above to generate your feed.</p>';
+                return;
+            }
+
+            let pool = [];
+            activeInterests.forEach(id => {
+                pool = pool.concat(RECOS[id]);
+            });
+
+            pool.sort(() => Math.random() - 0.5).slice(0, 8).forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'reco-card';
+                card.innerHTML = `
+                    <div class="reco-img-box"><img src="${item.img}" alt="${item.title}"></div>
+                    <div class="reco-content">
+                        <div class="reco-title">${item.title}</div>
+                        <div class="reco-meta">${item.views} views • Recommended</div>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        /* ─── GAME ─── */
+        const GAME_DATA = [
+            { name: 'Alex', avatar: '👦', interests: ['Gaming', 'Minecraft'], options: [{ l: 'New Minecraft Update Review', c: true }, { l: 'Baking 101: Sourdough Bread', c: false }] },
+            { name: 'Sarah', avatar: '👧', interests: ['Music', 'Piano'], options: [{ l: 'Top 10 Piano Songs 2024', c: true }, { l: 'Roblox Obstacle Course Tips', c: false }] },
+            { name: 'Leo', avatar: '🧒', interests: ['Coding', 'Robots'], options: [{ l: 'Build a Discord Bot with Python', c: true }, { l: 'How to Train Your Puppy', c: false }] },
+            { name: 'Maya', avatar: '👩', interests: ['Baking', 'Recipes'], options: [{ l: 'Mastering French Pastries', c: true }, { l: 'Space Exploration News', c: false }] },
+            { name: 'Kai', avatar: '🧑', interests: ['Physics', 'Space'], options: [{ l: 'What Happens in a Black Hole?', c: true }, { l: 'Viral Dance Challenge Compilation', c: false }] },
+            { name: 'Zoe', avatar: '👱', interests: ['Drawing', 'Art'], options: [{ l: 'Digital Painting Tutorial', c: true }, { l: 'Easy 5-Minute Pasta Recipe', c: false }] }
+        ];
+
+        let currentLevel = 0;
+        let score = 0;
+
+        function initGame() {
+            renderGame();
+        }
+
+        function renderGame() {
+            const q = GAME_DATA[currentLevel];
+            document.getElementById('user-avatar').innerHTML = q.avatar;
+            document.getElementById('user-name').innerHTML = q.name;
+            document.getElementById('user-interests').innerHTML = `Interests: ${q.interests.join(', ')}`;
+
+            const choices = document.getElementById('game-choices');
+            choices.innerHTML = '';
+            q.options.sort(() => Math.random() - 0.5).forEach(opt => {
+                const btn = document.createElement('button');
+                btn.className = 'opt-btn';
+                btn.style.textAlign = 'center';
+                btn.innerHTML = opt.l;
+                btn.onclick = () => handleChoice(opt.c, btn);
+                choices.appendChild(btn);
+            });
+        }
+
+        function handleChoice(correct, btn) {
+            const btns = document.querySelectorAll('#game-choices .opt-btn');
+            btns.forEach(b => b.style.pointerEvents = 'none');
+
+            const feedback = document.getElementById('game-feedback');
+            feedback.classList.remove('hidden');
+
+            if (correct) {
+                btn.classList.add('correct');
+                feedback.innerHTML = '✅ Correct! High Watch Time Predicted.';
+                feedback.style.color = '#166534';
+                score++;
+            } else {
+                btn.classList.add('wrong');
+                feedback.innerHTML = '❌ Incorrect. The user scrolled past.';
+                feedback.style.color = '#991B1B';
+            }
+
+            document.getElementById('game-next').classList.remove('hidden');
+            updateStats();
+        }
+
+        function nextGameStep() {
+            currentLevel++;
+            if (currentLevel >= GAME_DATA.length) {
+                showGameOver();
+            } else {
+                document.getElementById('game-feedback').classList.add('hidden');
+                document.getElementById('game-next').classList.add('hidden');
+                renderGame();
+                updateStats();
+            }
+        }
+
+        function updateStats() {
+            document.getElementById('game-score').innerHTML = score;
+            document.getElementById('game-level').innerHTML = Math.min(currentLevel + 1, GAME_DATA.length);
+        }
+
+        function showGameOver() {
+            document.getElementById('game-question').classList.add('hidden');
+            document.getElementById('game-over').classList.remove('hidden');
+            document.getElementById('final-stats').innerHTML = `You correctly identified ${score} out of ${GAME_DATA.length} behavior patterns. The machine is now smarter!`;
+        }
+
+        function resetGame() {
+            currentLevel = 0;
+            score = 0;
+            document.getElementById('game-question').classList.remove('hidden');
+            document.getElementById('game-over').classList.add('hidden');
+            document.getElementById('game-feedback').classList.add('hidden');
+            document.getElementById('game-next').classList.add('hidden');
+            renderGame();
+            updateStats();
+        }
+
+        /* ─── QUIZ ─── */
+        const QUIZ_DATA = [
+            { q: 'Which is the "Broad Mind" or big goal?', opts: ['Machine Learning', 'Artificial Intelligence', 'Data Science'], ans: 1 },
+            { q: 'What is the "Tool" that learns from examples?', opts: ['Artificial Intelligence', 'Hard-coding', 'Machine Learning'], ans: 2 },
+            { q: 'How does YouTube know what you want to watch?', opts: ['By reading your mind', 'By tracking patterns in your clicks and likes', 'By showing you random videos'], ans: 1 },
+            { q: 'What happens when the machine makes a wrong guess?', opts: ['It shuts down', 'It learns from the failure and adjusts its guess', 'It asks a human for the answer'], ans: 1 }
+        ];
+
+        function initQuiz() {
+            const container = document.getElementById('quiz-container');
+            container.innerHTML = '';
+            QUIZ_DATA.forEach((q, i) => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.style.textAlign = 'left';
+                card.innerHTML = `
+                    <h3 style="font-size: 18px; margin-bottom: 20px;">${i + 1}. ${q.q}</h3>
+                    <div class="v-stack">
+                        ${q.opts.map((opt, oi) => `<button class="opt-btn" onclick="handleQuiz(${i}, ${oi}, this)">${opt}</button>`).join('')}
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        let quizScore = 0;
+        let answeredCount = 0;
+
+        function handleQuiz(qi, oi, btn) {
+            const card = btn.parentElement;
+            const btns = card.querySelectorAll('.opt-btn');
+            btns.forEach(b => b.style.pointerEvents = 'none');
+
+            if (oi === QUIZ_DATA[qi].ans) {
+                btn.classList.add('correct');
+                quizScore++;
+            } else {
+                btn.classList.add('wrong');
+                btns[QUIZ_DATA[qi].ans].classList.add('correct');
+            }
+
+            answeredCount++;
+            if (answeredCount === QUIZ_DATA.length) {
+                showQuizResult();
+            }
+        }
+
+        function showQuizResult() {
+            const res = document.getElementById('quiz-result');
+            res.classList.remove('hidden');
+            document.getElementById('quiz-stats').innerHTML = `You scored ${quizScore} out of ${QUIZ_DATA.length}!`;
+        }
+
+        function resetQuiz() {
+            quizScore = 0;
+            answeredCount = 0;
+            document.getElementById('quiz-result').classList.add('hidden');
+            initQuiz();
+        }
+    </script>
+</body>
+
+</html>
